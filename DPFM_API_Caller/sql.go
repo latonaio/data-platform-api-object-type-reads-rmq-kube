@@ -2,9 +2,10 @@ package dpfm_api_caller
 
 import (
 	"context"
-	dpfm_api_input_reader "data-platform-api-freight-agreement-reads-rmq-kube/DPFM_API_Input_Reader"
-	dpfm_api_output_formatter "data-platform-api-freight-agreement-reads-rmq-kube/DPFM_API_Output_Formatter"
+	dpfm_api_input_reader "data-platform-api-object-type-reads-rmq-kube/DPFM_API_Input_Reader"
+	dpfm_api_output_formatter "data-platform-api-object-type-reads-rmq-kube/DPFM_API_Output_Formatter"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/latonaio/golang-logging-library-for-data-platform/logger"
@@ -19,67 +20,55 @@ func (c *DPFMAPICaller) readSqlProcess(
 	errs *[]error,
 	log *logger.Logger,
 ) interface{} {
-	var header *[]dpfm_api_output_formatter.Header
-	var item *[]dpfm_api_output_formatter.Item
-
+	var objectType *[]dpfm_api_output_formatter.ObjectType
+	var text *[]dpfm_api_output_formatter.Text
 	for _, fn := range accepter {
 		switch fn {
-		case "Header":
+		case "ObjectType":
 			func() {
-				header = c.Header(mtx, input, output, errs, log)
+				objectType = c.ObjectType(mtx, input, output, errs, log)
 			}()
-		case "HeadersByBuyer":
+		case "ObjectTypes":
 			func() {
-				header = c.HeadersByBuyer(mtx, input, output, errs, log)
+				objectType = c.ObjectTypes(mtx, input, output, errs, log)
 			}()
-		case "HeadersBySeller":
+		case "Text":
 			func() {
-				header = c.HeadersBySeller(mtx, input, output, errs, log)
+				text = c.Text(mtx, input, output, errs, log)
 			}()
-		case "Item":
+		case "Texts":
 			func() {
-				item = c.Item(mtx, input, output, errs, log)
+				text = c.Texts(mtx, input, output, errs, log)
 			}()
-		case "Items":
-			func() {
-				item = c.Items(mtx, input, output, errs, log)
-			}()
-
 		default:
-		}
-		if len(*errs) != 0 {
-			break
 		}
 	}
 
 	data := &dpfm_api_output_formatter.Message{
-		Header: header,
-		Item:   item,
+		ObjectType: objectType,
+		Text:		text,
 	}
 
 	return data
 }
 
-func (c *DPFMAPICaller) Header(
+func (c *DPFMAPICaller) ObjectType(
 	mtx *sync.Mutex,
 	input *dpfm_api_input_reader.SDC,
 	output *dpfm_api_output_formatter.SDC,
 	errs *[]error,
 	log *logger.Logger,
-) *[]dpfm_api_output_formatter.Header {
-	where := fmt.Sprintf("WHERE header.FreightAgreement = %d ", input.Header.FreightAgreement)
+) *[]dpfm_api_output_formatter.ObjectType {
+	where := fmt.Sprintf("WHERE ObjectType = '%s'", input.ObjectType.ObjectType)
 
-	if input.Header.IsCancelled != nil {
-		where = fmt.Sprintf("%s\nAND header.IsCancelled = %v ", where, *input.Header.IsCancelled)
-	}
-	if input.Header.IsMarkedForDeletion != nil {
-		where = fmt.Sprintf("%s\nAND header.IsMarkedForDeletion = %v", where, *input.Header.IsMarkedForDeletion)
+	if input.ObjectType.IsMarkedForDeletion != nil {
+		where = fmt.Sprintf("%s\nAND IsMarkedForDeletion = %v", where, *input.ObjectType.IsMarkedForDeletion)
 	}
 
 	rows, err := c.db.Query(
 		`SELECT *
-		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_freight_agreement_header_data AS header
-		` + where + ` ORDER BY header.IsMarkedForDeletion ASC, header.IsCancelled ASC, header.FreightAgreement DESC;`,
+		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_object_type_object_type_data
+		` + where + ` ORDER BY IsMarkedForDeletion ASC, ObjectType DESC;`,
 	)
 	if err != nil {
 		*errs = append(*errs, err)
@@ -87,7 +76,7 @@ func (c *DPFMAPICaller) Header(
 	}
 	defer rows.Close()
 
-	data, err := dpfm_api_output_formatter.ConvertToHeader(rows)
+	data, err := dpfm_api_output_formatter.ConvertToObjectType(rows)
 	if err != nil {
 		*errs = append(*errs, err)
 		return nil
@@ -96,42 +85,31 @@ func (c *DPFMAPICaller) Header(
 	return data
 }
 
-func (c *DPFMAPICaller) HeadersByBuyer(
+func (c *DPFMAPICaller) ObjectTypes(
 	mtx *sync.Mutex,
 	input *dpfm_api_input_reader.SDC,
 	output *dpfm_api_output_formatter.SDC,
 	errs *[]error,
 	log *logger.Logger,
-) *[]dpfm_api_output_formatter.Header {
-	where := "WHERE 1 = 1"
-	if input.Header.Buyer != nil {
-		where = fmt.Sprintf("%s\nAND Buyer = %v", where, *input.Header.Buyer)
-	}
-	if input.Header.HeaderBlockStatus != nil {
-		where = fmt.Sprintf("%s\nAND HeaderBlockStatus = %t", where, *input.Header.HeaderBlockStatus)
-	}
-	if input.Header.HeaderBillingStatus != nil {
-		where = fmt.Sprintf("%s\nAND HeaderBillingStatus != '%s'", where, *input.Header.HeaderBillingStatus)
-	}
-	if input.Header.IsCancelled != nil {
-		where = fmt.Sprintf("%s\nAND IsCancelled = %t", where, *input.Header.IsCancelled)
-	}
-	if input.Header.IsMarkedForDeletion != nil {
-		where = fmt.Sprintf("%s\nAND IsMarkedForDeletion = %t", where, *input.Header.IsMarkedForDeletion)
+) *[]dpfm_api_output_formatter.ObjectType {
+	where := fmt.Sprintf("WHERE ObjectType = '%s'", input.ObjectType.ObjectType)
+
+	if input.ObjectType.IsMarkedForDeletion != nil {
+		where = fmt.Sprintf("%s\nAND IsMarkedForDeletion = %v", where, *input.ObjectType.IsMarkedForDeletion)
 	}
 
 	rows, err := c.db.Query(
 		`SELECT *
-		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_freight_agreement_header_data
-		` + where + `;`,
+		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_object_type_object_type_data
+		` + where + ` ORDER BY IsMarkedForDeletion ASC, ObjectType DESC;`,
 	)
-
 	if err != nil {
 		*errs = append(*errs, err)
 		return nil
 	}
+	defer rows.Close()
 
-	data, err := dpfm_api_output_formatter.ConvertToHeader(rows)
+	data, err := dpfm_api_output_formatter.ConvertToObjectType(rows)
 	if err != nil {
 		*errs = append(*errs, err)
 		return nil
@@ -140,73 +118,28 @@ func (c *DPFMAPICaller) HeadersByBuyer(
 	return data
 }
 
-func (c *DPFMAPICaller) HeadersBySeller(
+func (c *DPFMAPICaller) Text(
 	mtx *sync.Mutex,
 	input *dpfm_api_input_reader.SDC,
 	output *dpfm_api_output_formatter.SDC,
 	errs *[]error,
 	log *logger.Logger,
-) *[]dpfm_api_output_formatter.Header {
-	where := "WHERE 1 = 1"
-	if input.Header.Seller != nil {
-		where = fmt.Sprintf("%s\nAND Seller = %v", where, *input.Header.Seller)
-	}
-	if input.Header.HeaderBlockStatus != nil {
-		where = fmt.Sprintf("%s\nAND HeaderBlockStatus = %t", where, *input.Header.HeaderBlockStatus)
-	}
-	if input.Header.HeaderBillingStatus != nil {
-		where = fmt.Sprintf("%s\nAND HeaderBillingStatus != '%s'", where, *input.Header.HeaderBillingStatus)
-	}
-	if input.Header.IsCancelled != nil {
-		where = fmt.Sprintf("%s\nAND IsCancelled = %t", where, *input.Header.IsCancelled)
-	}
-	if input.Header.IsMarkedForDeletion != nil {
-		where = fmt.Sprintf("%s\nAND IsMarkedForDeletion = %t", where, *input.Header.IsMarkedForDeletion)
-	}
-
-	rows, err := c.db.Query(
-		`SELECT *
-		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_freight_agreement_header_data
-		` + where + `;`,
-	)
-
-	if err != nil {
-		*errs = append(*errs, err)
-		return nil
-	}
-
-	data, err := dpfm_api_output_formatter.ConvertToHeader(rows)
-	if err != nil {
-		*errs = append(*errs, err)
-		return nil
-	}
-
-	return data
-}
-
-func (c *DPFMAPICaller) Item(
-	mtx *sync.Mutex,
-	input *dpfm_api_input_reader.SDC,
-	output *dpfm_api_output_formatter.SDC,
-	errs *[]error,
-	log *logger.Logger,
-) *[]dpfm_api_output_formatter.Item {
+) *[]dpfm_api_output_formatter.Text {
 	var args []interface{}
-	where := fmt.Sprintf("WHERE FreightAgreement = %d ", input.Header.FreightAgreement)
+	objectType := input.ObjectType.ObjectType
+	text := input.ObjectType.Text
 
-	itemIDs := ""
-	for _, v := range input.Header.Item {
-		itemIDs = fmt.Sprintf("%s, %d", itemIDs, v.FreightAgreementItem)
+	cnt := 0
+	for _, v := range text {
+		args = append(args, objectType, v.Language)
+		cnt++
 	}
 
-	if len(itemIDs) != 0 {
-		where = fmt.Sprintf("%s\nAND FreightAgreementItem IN ( %s ) ", where, itemIDs[1:])
-	}
+	repeat := strings.Repeat("(?,?),", cnt-1) + "(?,?)"
 	rows, err := c.db.Query(
-		`SELECT
-    		*
-		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_freight_agreement_item_data
-		`+where+` ORDER BY IsMarkedForDeletion ASC, IsCancelled ASC, FreightAgreement DESC, FreightAgreementItem ASC ;`, args...,
+		`SELECT *
+		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_object_type_text_data
+		WHERE (ObjectType, Language) IN ( `+repeat+` );`, args...,
 	)
 	if err != nil {
 		*errs = append(*errs, err)
@@ -214,7 +147,7 @@ func (c *DPFMAPICaller) Item(
 	}
 	defer rows.Close()
 
-	data, err := dpfm_api_output_formatter.ConvertToItem(rows)
+	data, err := dpfm_api_output_formatter.ConvertToText(rows)
 	if err != nil {
 		*errs = append(*errs, err)
 		return nil
@@ -223,46 +156,36 @@ func (c *DPFMAPICaller) Item(
 	return data
 }
 
-func (c *DPFMAPICaller) Items(
+func (c *DPFMAPICaller) Texts(
 	mtx *sync.Mutex,
 	input *dpfm_api_input_reader.SDC,
 	output *dpfm_api_output_formatter.SDC,
 	errs *[]error,
 	log *logger.Logger,
-) *[]dpfm_api_output_formatter.Item {
-	item := &dpfm_api_input_reader.Item{}
-	if len(input.Header.Item) > 0 {
-		item = &input.Header.Item[0]
-	}
-	where := "WHERE 1 = 1"
+) *[]dpfm_api_output_formatter.Text {
+	var args []interface{}
+	text := input.ObjectType.Text
 
-	if item != nil {
-		if item.ItemBlockStatus != nil {
-			where = fmt.Sprintf("%s\nAND item.ItemBlockStatus = '%v'", where, *item.ItemBlockStatus)
-		}
-		if item.ItemBillingBlockStatus != nil {
-			where = fmt.Sprintf("%s\nAND item.ItemBillingBlockStatus = %v", where, *item.ItemBillingBlockStatus)
-		}
-		if item.IsCancelled != nil {
-			where = fmt.Sprintf("%s\nAND item.IsCancelled = %v", where, *item.IsCancelled)
-		}
-		if item.IsMarkedForDeletion != nil {
-			where = fmt.Sprintf("%s\nAND item.IsMarkedForDeletion = %v", where, *item.IsMarkedForDeletion)
-		}
+	cnt := 0
+	for _, v := range text {
+		args = append(args, v.Language)
+		cnt++
 	}
 
+	repeat := strings.Repeat("(?),", cnt-1) + "(?)"
 	rows, err := c.db.Query(
-		`SELECT 
-			*
-		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_freight_agreement_item_data as item
-		` + where + ` ORDER BY item.IsMarkedForDeletion ASC, item.IsCancelled ASC, item.FreightAgreement DESC, item.FreightAgreementItem ASC ;`)
+		`SELECT * 
+		FROM DataPlatformMastersAndTransactionsMysqlKube.data_platform_object_type_text_data
+		WHERE Language IN ( `+repeat+` );`, args...,
+	)
 	if err != nil {
 		*errs = append(*errs, err)
 		return nil
 	}
 	defer rows.Close()
 
-	data, err := dpfm_api_output_formatter.ConvertToItem(rows)
+	//
+	data, err := dpfm_api_output_formatter.ConvertToText(rows)
 	if err != nil {
 		*errs = append(*errs, err)
 		return nil

@@ -2,9 +2,9 @@ package dpfm_api_caller
 
 import (
 	"context"
-	dpfm_api_input_reader "data-platform-api-freight-agreement-reads-rmq-kube/DPFM_API_Input_Reader"
-	dpfm_api_output_formatter "data-platform-api-freight-agreement-reads-rmq-kube/DPFM_API_Output_Formatter"
-	"data-platform-api-freight-agreement-reads-rmq-kube/config"
+	dpfm_api_input_reader "data-platform-api-object-type-reads-rmq-kube/DPFM_API_Input_Reader"
+	dpfm_api_output_formatter "data-platform-api-object-type-reads-rmq-kube/DPFM_API_Output_Formatter"
+	"data-platform-api-object-type-reads-rmq-kube/config"
 	"sync"
 
 	"github.com/latonaio/golang-logging-library-for-data-platform/logger"
@@ -43,7 +43,7 @@ func (c *DPFMAPICaller) AsyncReads(
 	// SQL処理
 	response = c.readSqlProcess(nil, &mtx, input, output, accepter, &errs, log)
 
-	return response, errs
+	return response, nil
 }
 
 func checkResult(msg rabbitmq.RabbitmqMessage) bool {
@@ -62,3 +62,4 @@ func checkResult(msg rabbitmq.RabbitmqMessage) bool {
 func getBoolPtr(b bool) *bool {
 	return &b
 }
+

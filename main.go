@@ -1,10 +1,10 @@
 package main
 
 import (
-	dpfm_api_caller "data-platform-api-freight-agreement-reads-rmq-kube/DPFM_API_Caller"
-	dpfm_api_input_reader "data-platform-api-freight-agreement-reads-rmq-kube/DPFM_API_Input_Reader"
-	dpfm_api_output_formatter "data-platform-api-freight-agreement-reads-rmq-kube/DPFM_API_Output_Formatter"
-	"data-platform-api-freight-agreement-reads-rmq-kube/config"
+	dpfm_api_caller "data-platform-api-object-type-reads-rmq-kube/DPFM_API_Caller"
+	dpfm_api_input_reader "data-platform-api-object-type-reads-rmq-kube/DPFM_API_Input_Reader"
+	dpfm_api_output_formatter "data-platform-api-object-type-reads-rmq-kube/DPFM_API_Output_Formatter"
+	"data-platform-api-object-type-reads-rmq-kube/config"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -18,9 +18,6 @@ func main() {
 	l := logger.NewLogger()
 	conf := config.NewConf()
 	db, err := database.NewMySQL(conf.DB)
-	if err != nil {
-		l.Fatal(err.Error())
-	}
 	rmq, err := rabbitmq.NewRabbitmqClient(conf.RMQ.URL(), conf.RMQ.QueueFrom(), conf.RMQ.SessionControlQueue(), conf.RMQ.QueueToSQL(), 0)
 	if err != nil {
 		l.Fatal(err.Error())
@@ -33,7 +30,7 @@ func main() {
 	defer rmq.Stop()
 
 	caller := dpfm_api_caller.NewDPFMAPICaller(conf, rmq, db)
-	l.Info("READY!")
+
 	for msg := range iter {
 		start := time.Now()
 		err = callProcess(rmq, caller, conf, msg)
@@ -47,15 +44,10 @@ func main() {
 }
 
 func recovery(l *logger.Logger, err *error) {
-	if err != nil {
-		if *err != nil {
-			l.Error("%+v", *err)
-			if e := recover(); e != nil {
-				*err = fmt.Errorf("error occurred: %w", e)
-				l.Error(err)
-				return
-			}
-		}
+	if e := recover(); e != nil {
+		*err = fmt.Errorf("error occurred: %w", e)
+		l.Error(err)
+		return
 	}
 }
 func getSessionID(data map[string]interface{}) string {
@@ -81,6 +73,7 @@ func callProcess(rmq *rabbitmq.RabbitmqClient, caller *dpfm_api_caller.DPFMAPICa
 		l.Error(err)
 		return
 	}
+
 	accepter := getAccepter(&input)
 	res, errs := caller.AsyncReads(accepter, &input, &output, l)
 	if len(errs) != 0 {
@@ -110,11 +103,10 @@ func getAccepter(input *dpfm_api_input_reader.SDC) []string {
 
 	if accepter[0] == "All" {
 		accepter = []string{
-			"Header",
-			"HeadersByBuyer",
-			"HeadersBySeller",
-			"Item",
-			"Items",
+			"ObjectType",
+			"ObjectTypes",
+			"Text",
+			"Texts",
 		}
 	}
 	return accepter
